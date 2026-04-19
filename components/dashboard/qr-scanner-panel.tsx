@@ -1,5 +1,6 @@
 "use client";
 
+import jsQR from "jsqr";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -16,15 +17,19 @@ export function QrScannerPanel() {
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState("");
   const [isSupported, setIsSupported] = useState(false);
+  const [isUsingFallbackScanner, setIsUsingFallbackScanner] = useState(false);
   const [lastScan, setLastScan] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectorRef = useRef<BarcodeDetectorLike | null>(null);
   const scanTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const detector = getBarcodeDetector();
-    setIsSupported(Boolean(detector));
+    const hasCameraSupport = Boolean(navigator.mediaDevices?.getUserMedia);
+    setIsSupported(hasCameraSupport);
+    setIsUsingFallbackScanner(!detector);
 
     if (detector) {
       detectorRef.current = new detector({ formats: ["qr_code"] });
@@ -42,8 +47,8 @@ export function QrScannerPanel() {
   }, [isOpen]);
 
   async function startScanner() {
-    if (!detectorRef.current) {
-      setError("This browser does not support camera QR scanning here. Use the QR lookup field instead.");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("This browser cannot open the camera here. Use the QR lookup field instead.");
       return;
     }
 
@@ -88,17 +93,15 @@ export function QrScannerPanel() {
   }
 
   async function scanFrame() {
-    const detector = detectorRef.current;
     const video = videoRef.current;
 
-    if (!detector || !video || !streamRef.current) {
+    if (!video || !streamRef.current) {
       return;
     }
 
     try {
       if (video.readyState >= 2) {
-        const results = await detector.detect(video);
-        const rawValue = results.find((result) => result.rawValue)?.rawValue?.trim();
+        const rawValue = (await detectQrValue(video, detectorRef.current, canvasRef.current))?.trim();
 
         if (rawValue) {
           setLastScan(rawValue);
@@ -108,7 +111,7 @@ export function QrScannerPanel() {
         }
       }
     } catch {
-      setError("Unable to read the QR code from the camera feed yet. Try holding the code closer and steadier.");
+      setError("Unable to read the QR code from the camera feed yet. Try holding the code closer, flatter, and steadier.");
     }
 
     scheduleScan();
@@ -140,7 +143,12 @@ export function QrScannerPanel() {
       {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
       {!isSupported ? (
         <p className="mt-3 text-sm text-slate-500">
-          Camera QR detection is not supported in this browser, so use the lookup field below.
+          Camera access is not available in this browser, so use the lookup field below.
+        </p>
+      ) : null}
+      {isSupported && isUsingFallbackScanner ? (
+        <p className="mt-3 text-sm text-slate-500">
+          Using the built-in fallback QR reader for broader phone support.
         </p>
       ) : null}
 
@@ -149,6 +157,7 @@ export function QrScannerPanel() {
           <video ref={videoRef} autoPlay playsInline muted className="h-72 w-full object-cover" />
         </div>
       ) : null}
+      <canvas ref={canvasRef} className="hidden" />
 
       {lastScan ? (
         <p className="mt-3 text-sm text-slate-500">
@@ -166,4 +175,60 @@ function getBarcodeDetector(): BarcodeDetectorConstructorLike | null {
 
   const candidate = (window as Window & { BarcodeDetector?: BarcodeDetectorConstructorLike }).BarcodeDetector;
   return candidate || null;
+}
+
+async function detectQrValue(
+  video: HTMLVideoElement,
+  detector: BarcodeDetectorLike | null,
+  canvas: HTMLCanvasElement | null
+) {
+  let nativeValue = "";
+
+  try {
+    nativeValue = await detectWithBarcodeDetector(video, detector);
+  } catch {
+    nativeValue = "";
+  }
+
+  if (nativeValue) {
+    return nativeValue;
+  }
+
+  return detectWithJsQr(video, canvas);
+}
+
+async function detectWithBarcodeDetector(video: HTMLVideoElement, detector: BarcodeDetectorLike | null) {
+  if (!detector) {
+    return "";
+  }
+
+  const results = await detector.detect(video);
+  return results.find((result) => result.rawValue)?.rawValue?.trim() || "";
+}
+
+function detectWithJsQr(video: HTMLVideoElement, canvas: HTMLCanvasElement | null) {
+  if (!canvas || !video.videoWidth || !video.videoHeight) {
+    return "";
+  }
+
+  const maxWidth = 960;
+  const scale = video.videoWidth > maxWidth ? maxWidth / video.videoWidth : 1;
+  const width = Math.max(1, Math.round(video.videoWidth * scale));
+  const height = Math.max(1, Math.round(video.videoHeight * scale));
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    return "";
+  }
+
+  context.drawImage(video, 0, 0, width, height);
+  const imageData = context.getImageData(0, 0, width, height);
+  const result = jsQR(imageData.data, imageData.width, imageData.height, {
+    inversionAttempts: "attemptBoth"
+  });
+
+  return result?.data?.trim() || "";
 }

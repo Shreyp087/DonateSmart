@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDonationVoiceContext } from "@/components/voice/donation-voice-context";
@@ -105,12 +105,12 @@ export function DonationForm({
     return () => window.clearTimeout(timeout);
   }, [highlightImageSection]);
 
-  function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
+  const updateField = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: "" }));
-  }
+  }, []);
 
-  function updateDonorField<K extends keyof DonorInput>(key: K, value: DonorInput[K]) {
+  const updateDonorField = useCallback(<K extends keyof DonorInput>(key: K, value: DonorInput[K]) => {
     setForm((current) => ({
       ...current,
       donor: {
@@ -119,24 +119,24 @@ export function DonationForm({
       }
     }));
     setErrors((current) => ({ ...current, [key]: "" }));
-  }
+  }, []);
 
-  function setCategoryValue(value: FormState["category"]) {
+  const setCategoryValue = useCallback((value: FormState["category"]) => {
     updateField("category", value);
     if (value !== "clothing") {
       updateField("isBulkClothing", false);
       updateField("bulkClothingRange", "");
     }
-  }
+  }, [updateField]);
 
-  function setBulkClothingValue(value: boolean) {
+  const setBulkClothingValue = useCallback((value: boolean) => {
     updateField("isBulkClothing", value);
     if (!value) {
       updateField("bulkClothingRange", "");
     }
-  }
+  }, [updateField]);
 
-  function validateDonorStep() {
+  const validateDonorStep = useCallback(() => {
     const nextErrors: Record<string, string> = {};
 
     if (form.isAnonymous) {
@@ -162,9 +162,9 @@ export function DonationForm({
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
-  }
+  }, [form.donor.email, form.donor.name, form.donor.phone, form.isAnonymous]);
 
-  function validateItemStep() {
+  const validateItemStep = useCallback(() => {
     const nextErrors: Record<string, string> = {};
 
     if (!form.itemName.trim()) {
@@ -185,7 +185,7 @@ export function DonationForm({
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
-  }
+  }, [form.description.length, form.imageDataUrl, form.itemName, form.bulkClothingRange, isBulkClothingDonation]);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -205,7 +205,7 @@ export function DonationForm({
     reader.readAsDataURL(file);
   }
 
-  async function openCamera() {
+  const openCamera = useCallback(async () => {
     if (step !== "item") return;
 
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -231,17 +231,17 @@ export function DonationForm({
     } finally {
       setIsStartingCamera(false);
     }
-  }
+  }, [step]);
 
-  function stopCamera() {
+  const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     setIsCameraOpen(false);
-  }
+  }, []);
 
-  function capturePhoto() {
+  const capturePhoto = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
@@ -269,18 +269,18 @@ export function DonationForm({
     setCameraError("");
     setVoiceUploadHint("Photo captured. You can ask the voice guide to submit the donation now.");
     stopCamera();
-  }
+  }, [stopCamera, updateField]);
 
-  function continueToItemStep() {
+  const continueToItemStep = useCallback(() => {
     setSubmitError("");
     if (validateDonorStep()) {
       setStep("item");
       return "Donor details are complete. Continue with the item details.";
     }
     return "Some donor details are still missing or invalid.";
-  }
+  }, [validateDonorStep]);
 
-  async function submitDonation() {
+  const submitDonation = useCallback(async () => {
     setSubmitError("");
 
     if (step === "donor") {
@@ -351,7 +351,14 @@ export function DonationForm({
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [
+    continueToItemStep,
+    donor,
+    form,
+    router,
+    step,
+    validateItemStep
+  ]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -364,7 +371,7 @@ export function DonationForm({
     await submitDonation();
   }
 
-  async function promptImageUpload(mode?: "camera" | "files") {
+  const promptImageUpload = useCallback(async (mode?: "camera" | "files") => {
     imageSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setHighlightImageSection(true);
 
@@ -389,104 +396,135 @@ export function DonationForm({
     return mode === "files"
       ? "Ask the donor to use the upload button on the page now."
       : "Ask the donor to use the upload or camera buttons on the page now.";
-  }
+  }, [openCamera]);
 
-  const voiceState = {
-    isAnonymous: form.isAnonymous,
-    donorName: form.donor.name,
-    donorEmail: form.donor.email,
-    donorPhone: form.donor.phone,
-    itemName: form.itemName,
-    category: form.category,
-    isBulkClothing: form.isBulkClothing,
-    bulkClothingRange: form.bulkClothingRange,
-    condition: form.condition,
-    brand: form.brand,
-    size: form.size,
-    description: form.description,
-    hasImage: imageSelected,
-    step
-  } as const;
+  const voiceState = useMemo(
+    () =>
+      ({
+        isAnonymous: form.isAnonymous,
+        donorName: form.donor.name,
+        donorEmail: form.donor.email,
+        donorPhone: form.donor.phone,
+        itemName: form.itemName,
+        category: form.category,
+        isBulkClothing: form.isBulkClothing,
+        bulkClothingRange: form.bulkClothingRange,
+        condition: form.condition,
+        brand: form.brand,
+        size: form.size,
+        description: form.description,
+        hasImage: imageSelected,
+        step
+      }) as const,
+    [
+      form.brand,
+      form.bulkClothingRange,
+      form.category,
+      form.condition,
+      form.description,
+      form.donor.email,
+      form.donor.name,
+      form.donor.phone,
+      form.isAnonymous,
+      form.isBulkClothing,
+      form.itemName,
+      form.size,
+      imageSelected,
+      step
+    ]
+  );
 
-  const voiceActions = {
-    setAnonymous(value: boolean) {
-      updateField("isAnonymous", value);
-      return value
-        ? "Anonymous donation is enabled. Loyalty points will not be counted."
-        : "Anonymous donation is disabled. The donor profile fields can now be filled.";
-    },
-    setDonorName(value: string) {
-      updateDonorField("name", value);
-      return `Donor name set to ${value || "blank"}.`;
-    },
-    setDonorEmail(value: string) {
-      updateDonorField("email", value);
-      return `Donor email set to ${value || "blank"}.`;
-    },
-    setDonorPhone(value: string) {
-      updateDonorField("phone", value);
-      return `Donor phone set to ${value || "blank"}.`;
-    },
-    continueToItemStep,
-    goToDonorStep() {
-      setStep("donor");
-      return "Returned to the donor details step.";
-    },
-    setItemName(value: string) {
-      updateField("itemName", value);
-      return `Item name set to ${value || "blank"}.`;
-    },
-    setCategory(value: string) {
-      const normalized = value.toLowerCase().trim() as FormState["category"];
-      const validCategories = new Set(categoryOptions.map((option) => option.value));
+  const voiceActions = useMemo(
+    () =>
+      ({
+        setAnonymous(value: boolean) {
+          updateField("isAnonymous", value);
+          return value
+            ? "Anonymous donation is enabled. Loyalty points will not be counted."
+            : "Anonymous donation is disabled. The donor profile fields can now be filled.";
+        },
+        setDonorName(value: string) {
+          updateDonorField("name", value);
+          return `Donor name set to ${value || "blank"}.`;
+        },
+        setDonorEmail(value: string) {
+          updateDonorField("email", value);
+          return `Donor email set to ${value || "blank"}.`;
+        },
+        setDonorPhone(value: string) {
+          updateDonorField("phone", value);
+          return `Donor phone set to ${value || "blank"}.`;
+        },
+        continueToItemStep,
+        goToDonorStep() {
+          setStep("donor");
+          return "Returned to the donor details step.";
+        },
+        setItemName(value: string) {
+          updateField("itemName", value);
+          return `Item name set to ${value || "blank"}.`;
+        },
+        setCategory(value: string) {
+          const normalized = value.toLowerCase().trim() as FormState["category"];
+          const validCategories = new Set(categoryOptions.map((option) => option.value));
 
-      if (!validCategories.has(normalized as DonationInput["category"])) {
-        return `That category is not valid. Use one of: ${categoryOptions.map((option) => option.label).join(", ")}.`;
-      }
+          if (!validCategories.has(normalized as DonationInput["category"])) {
+            return `That category is not valid. Use one of: ${categoryOptions.map((option) => option.label).join(", ")}.`;
+          }
 
-      setCategoryValue(normalized);
-      return `Category set to ${normalized}.`;
-    },
-    setBulkClothing(value: boolean) {
-      setBulkClothingValue(value);
-      return value
-        ? "Bulk clothing donation is enabled. Ask for the clothing quantity range next."
-        : "Single clothing item mode is enabled.";
-    },
-    setBulkClothingRange(value: string) {
-      const validRanges = new Set(["0-10", "10-20", "20-30", "30-40", "40+"]);
-      if (!validRanges.has(value)) {
-        return "That clothing range is not valid. Use 0-10, 10-20, 20-30, 30-40, or 40+.";
-      }
-      updateField("bulkClothingRange", value as ClothingBulkRange);
-      return `Bulk clothing range set to ${value}.`;
-    },
-    setCondition(value: string) {
-      const normalized = value.toLowerCase().trim() as FormState["condition"];
-      const validConditions = new Set(conditionOptions.map((option) => option.value));
+          setCategoryValue(normalized);
+          return `Category set to ${normalized}.`;
+        },
+        setBulkClothing(value: boolean) {
+          setBulkClothingValue(value);
+          return value
+            ? "Bulk clothing donation is enabled. Ask for the clothing quantity range next."
+            : "Single clothing item mode is enabled.";
+        },
+        setBulkClothingRange(value: string) {
+          const validRanges = new Set(["0-10", "10-20", "20-30", "30-40", "40+"]);
+          if (!validRanges.has(value)) {
+            return "That clothing range is not valid. Use 0-10, 10-20, 20-30, 30-40, or 40+.";
+          }
+          updateField("bulkClothingRange", value as ClothingBulkRange);
+          return `Bulk clothing range set to ${value}.`;
+        },
+        setCondition(value: string) {
+          const normalized = value.toLowerCase().trim() as FormState["condition"];
+          const validConditions = new Set(conditionOptions.map((option) => option.value));
 
-      if (!validConditions.has(normalized as DonationInput["condition"])) {
-        return `That condition is not valid. Use one of: ${conditionOptions.map((option) => option.label).join(", ")}.`;
-      }
+          if (!validConditions.has(normalized as DonationInput["condition"])) {
+            return `That condition is not valid. Use one of: ${conditionOptions.map((option) => option.label).join(", ")}.`;
+          }
 
-      updateField("condition", normalized);
-      return `Condition set to ${normalized}.`;
-    },
-    setBrand(value: string) {
-      updateField("brand", value);
-      return value ? `Brand set to ${value}.` : "Brand cleared.";
-    },
-    setSize(value: string) {
-      updateField("size", value);
-      return value ? `Size set to ${value}.` : "Size cleared.";
-    },
-    setDescription(value: string) {
-      updateField("description", value);
-      return value ? "Description updated." : "Description cleared.";
-    },
-    promptImageUpload,
-    submitDonation
-  } satisfies Record<string, (...args: never[]) => unknown>;
+          updateField("condition", normalized);
+          return `Condition set to ${normalized}.`;
+        },
+        setBrand(value: string) {
+          updateField("brand", value);
+          return value ? `Brand set to ${value}.` : "Brand cleared.";
+        },
+        setSize(value: string) {
+          updateField("size", value);
+          return value ? `Size set to ${value}.` : "Size cleared.";
+        },
+        setDescription(value: string) {
+          updateField("description", value);
+          return value ? "Description updated." : "Description cleared.";
+        },
+        promptImageUpload,
+        submitDonation
+      }) satisfies Record<string, (...args: never[]) => unknown>,
+    [
+      continueToItemStep,
+      promptImageUpload,
+      setBulkClothingValue,
+      setCategoryValue,
+      submitDonation,
+      updateDonorField,
+      updateField
+    ]
+  );
 
   useEffect(() => {
     setDonationVoiceState(voiceState);
@@ -494,11 +532,14 @@ export function DonationForm({
 
   useEffect(() => {
     setDonationVoiceActions(voiceActions);
+  }, [setDonationVoiceActions, setDonationVoiceState, voiceActions]);
+
+  useEffect(() => {
     return () => {
       setDonationVoiceActions(null);
       setDonationVoiceState(null);
     };
-  }, [setDonationVoiceActions, setDonationVoiceState, voiceActions]);
+  }, [setDonationVoiceActions, setDonationVoiceState]);
 
   if (submittedItem) {
     const nextItemHref = submittedDonorId ? `/donate?donor=${submittedDonorId}` : submittedItem.isAnonymousDonation ? "/donate?anonymous=1" : "/donate";
@@ -508,10 +549,10 @@ export function DonationForm({
       : `/success/${submittedItem.id}?anonymous=1`;
 
     return (
-      <div className="grid gap-8 lg:grid-cols-[1fr_340px] lg:items-start">
-        <section className="rounded-[2rem] border border-white/80 bg-white/85 p-8 shadow-card backdrop-blur">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sage-700">Submission Complete</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+        <section className="rounded-[2.25rem] border border-black/5 bg-white/86 p-8 shadow-card backdrop-blur">
+          <p className="font-mono text-[11px] uppercase tracking-[0.36em] text-slate-500">Submission Complete</p>
+          <h1 className="mt-4 text-4xl font-medium tracking-tight text-slate-900">
             {submittedItem.itemName} is now in DonateSmart.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
@@ -519,15 +560,15 @@ export function DonationForm({
           </p>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-[1.5rem] bg-slate-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Your donation impact</p>
-              <p className="mt-3 text-lg font-semibold text-slate-900">{submittedItem.donorImpactMessage}</p>
+            <div className="rounded-[1.5rem] border border-black/5 bg-slate-50/80 p-5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-slate-400">Your donation impact</p>
+              <p className="mt-3 text-lg font-medium text-slate-900">{submittedItem.donorImpactMessage}</p>
             </div>
-            <div className="rounded-[1.5rem] bg-slate-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+            <div className="rounded-[1.5rem] border border-black/5 bg-slate-50/80 p-5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-slate-400">
                 {submittedItem.isAnonymousDonation ? "Anonymous donation" : "Loyalty points incoming"}
               </p>
-              <p className="mt-3 text-base font-semibold text-slate-900">
+              <p className="mt-3 text-base font-medium text-slate-900">
                 {submittedItem.isAnonymousDonation ? "No loyalty points for this donation" : `${submittedItem.loyaltyPointsAwarded} points`}
               </p>
               <p className="mt-2 text-sm text-slate-500">
@@ -541,29 +582,29 @@ export function DonationForm({
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href={nextItemHref}
-              className="rounded-full bg-sage-600 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-sage-700"
+              className="rounded-full bg-sage-600 px-6 py-3 text-center text-sm font-medium text-white transition hover:bg-sage-700"
             >
               Next item
             </Link>
             <Link
               href={homeHref}
-              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Exit to home
             </Link>
             <Link
               href={canonicalSuccessHref}
-              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Open full success page
             </Link>
           </div>
         </section>
 
-        <aside className="rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-card backdrop-blur">
+        <aside className="rounded-[2.25rem] border border-black/5 bg-white/86 p-6 shadow-card backdrop-blur">
           <p className="text-sm font-semibold text-slate-900">QR code for staff</p>
           <p className="mt-2 text-sm text-slate-500">Attach or print this code so it can be scanned later.</p>
-          <div className="mt-5 rounded-[1.5rem] bg-slate-50 p-4">
+          <div className="mt-5 rounded-[1.5rem] border border-black/5 bg-slate-50/80 p-4">
             <img
               src={submittedItem.qrCodeDataUrl}
               alt={`QR code for ${submittedItem.itemName}`}
@@ -573,8 +614,8 @@ export function DonationForm({
           <div className="mt-4">
             <DownloadQrButton qrCodeDataUrl={submittedItem.qrCodeDataUrl} itemId={submittedItem.id} />
           </div>
-          <div className="mt-4 rounded-[1.25rem] bg-slate-50 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">QR code ID</p>
+          <div className="mt-4 rounded-[1.25rem] border border-black/5 bg-slate-50/80 px-4 py-3">
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-slate-400">QR code ID</p>
             <p className="mt-2 text-sm font-semibold text-slate-900">{submittedItem.qrCodeId}</p>
           </div>
         </aside>
@@ -585,11 +626,11 @@ export function DonationForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]"
+      className="grid gap-8 xl:grid-cols-[minmax(0,1.02fr)_380px]"
       aria-describedby={submitError ? "form-error" : undefined}
     >
-        <div className="space-y-6 rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-card backdrop-blur sm:p-8">
-        <div className="flex items-center gap-3">
+      <div className="space-y-6 rounded-[2.25rem] border border-black/5 bg-white/86 p-6 shadow-card backdrop-blur sm:p-8">
+        <div className="flex flex-wrap items-center gap-3">
           <StepBadge active={step === "donor"} number="1" label="Donor details" />
           <StepBadge active={step === "item"} number="2" label="Item details" />
         </div>
@@ -666,7 +707,7 @@ export function DonationForm({
                 <button
                   type="button"
                   onClick={() => setStep("donor")}
-                  className="mt-3 text-sm font-semibold text-sage-700 hover:text-sage-900"
+                  className="mt-3 text-sm font-medium text-sage-700 hover:text-sage-900"
                 >
                   Edit donor details
                 </button>
@@ -839,7 +880,7 @@ export function DonationForm({
             <button
               type="button"
               onClick={() => setStep("donor")}
-              className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
+              className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:w-auto"
             >
               Back
             </button>
@@ -847,22 +888,22 @@ export function DonationForm({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex w-full items-center justify-center rounded-full bg-sage-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-sage-700 disabled:cursor-not-allowed disabled:bg-sage-300"
+            className="inline-flex w-full items-center justify-center rounded-full bg-sage-600 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-sage-700 disabled:cursor-not-allowed disabled:bg-sage-300"
           >
             {step === "donor"
               ? "Continue to item details"
               : isSubmitting
-                ? "Submitting and analyzing with Gemini..."
+                ? "Submitting donation..."
                 : "Submit donation"}
           </button>
         </div>
       </div>
 
-      <aside className="space-y-6">
+      <aside className="space-y-6 xl:sticky xl:top-28">
         <div
           ref={imageSectionRef}
           className={cn(
-            "rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-card backdrop-blur transition sm:p-8",
+            "rounded-[2.25rem] border border-black/5 bg-white/86 p-6 shadow-card backdrop-blur transition sm:p-8",
             highlightImageSection ? "ring-4 ring-sage-200 border-sage-300" : ""
           )}
         >
@@ -871,8 +912,8 @@ export function DonationForm({
               <p className="text-sm font-semibold text-slate-900">Item photo</p>
               <p className="mt-1 text-sm text-slate-500">
                 {isBulkClothingDonation
-                  ? "Photograph the trash bag, wrapped bag, or clothing bundle clearly so staff can review the bulk donation."
-                  : "Add one image for preview and staff review, either from your device or directly from the camera."}
+                  ? "Add one clear bag photo so staff can review the bulk donation."
+                  : "Add one clear image for preview and staff review."}
               </p>
             </div>
           </div>
@@ -893,10 +934,10 @@ export function DonationForm({
                 onChange={handleFileChange}
                 disabled={step !== "item"}
               />
-              <span className="text-sm font-semibold text-sage-800">
-                {imageSelected ? "Replace from files" : "Upload from files"}
+              <span className="text-sm font-medium text-sage-800">
+                {imageSelected ? "Replace photo" : "Upload photo"}
               </span>
-              <span className="mt-2 text-sm text-slate-500">Choose from gallery or device</span>
+              <span className="mt-2 text-sm text-slate-500">Choose from device</span>
             </label>
 
             <button
@@ -910,10 +951,10 @@ export function DonationForm({
                   : "cursor-not-allowed border-slate-200 bg-slate-50"
               )}
             >
-              <span className="text-sm font-semibold text-peach-500">
-                {isStartingCamera ? "Opening camera..." : "Take photo with camera"}
+              <span className="text-sm font-medium text-peach-500">
+                {isStartingCamera ? "Opening camera..." : "Use camera"}
               </span>
-              <span className="mt-2 text-sm text-slate-500">Open a live camera preview inside the app</span>
+              <span className="mt-2 text-sm text-slate-500">Capture inside the app</span>
             </button>
           </div>
           {errors.imageDataUrl ? (
@@ -939,14 +980,14 @@ export function DonationForm({
                 <button
                   type="button"
                   onClick={capturePhoto}
-                  className="inline-flex items-center justify-center rounded-full bg-peach-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-peach-400"
+                  className="inline-flex items-center justify-center rounded-full bg-peach-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-peach-400"
                 >
                   Capture photo
                 </button>
                 <button
                   type="button"
                   onClick={stopCamera}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   Cancel camera
                 </button>
@@ -954,7 +995,7 @@ export function DonationForm({
             </div>
           ) : null}
 
-          <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50">
+          <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-black/5 bg-slate-50">
             {imageSelected ? (
               <img src={form.imageDataUrl} alt="Donation preview" className="h-72 w-full object-cover" />
             ) : (
@@ -968,20 +1009,19 @@ export function DonationForm({
           <canvas ref={canvasRef} className="hidden" />
         </div>
 
-        <div className="rounded-[2rem] border border-sage-100 bg-sage-900 p-6 text-white shadow-card">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sage-100">What happens next</p>
+        <div className="rounded-[2.25rem] border border-slate-200 bg-slate-950 p-6 text-white shadow-card">
+          <p className="font-mono text-[11px] uppercase tracking-[0.34em] text-slate-300">After submit</p>
           <ul className="mt-4 space-y-3 text-sm text-sage-50">
             <li>
               {form.isAnonymous
-                ? "Anonymous donations skip donor profile creation and can still be submitted one after another."
-                : "We save the donor profile so multiple items can be submitted in one session."}
+                ? "Anonymous donations skip donor profile creation."
+                : "Named donors can keep adding items in the same session."}
             </li>
-            <li>Gemini checks whether the image is clear and matches the selected category.</li>
-            <li>Bulk clothing bags are accepted when the clothing range is selected and the bag photo is clear.</li>
+            <li>The item gets a QR-linked record right away for staff handoff.</li>
             <li>
               {form.isAnonymous
                 ? "Anonymous donations do not earn loyalty points."
-                : "Accepted items earn loyalty points worth 10% of the low end of the suggested resale range."}
+                : "Loyalty points are added after staff approval."}
             </li>
           </ul>
         </div>
@@ -994,14 +1034,14 @@ function StepBadge({ active, number, label }: { active: boolean; number: string;
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold",
-        active ? "bg-sage-100 text-sage-800" : "bg-slate-100 text-slate-500"
+        "inline-flex items-center gap-3 rounded-full border px-4 py-2 text-sm font-medium",
+        active ? "border-sage-200 bg-sage-50 text-sage-900" : "border-black/5 bg-slate-50 text-slate-500"
       )}
     >
       <span
         className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-full text-xs",
-          active ? "bg-sage-600 text-white" : "bg-white text-slate-500"
+          "flex h-7 w-7 items-center justify-center rounded-full font-mono text-[11px]",
+          active ? "bg-sage-700 text-white" : "bg-white text-slate-500"
         )}
       >
         {number}
@@ -1025,7 +1065,7 @@ function FormField({
   return (
     <label className="block">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-sm font-semibold text-slate-800">{label}</span>
+        <span className="text-sm font-medium text-slate-800">{label}</span>
         {required ? <span className="text-xs text-rose-500">*</span> : null}
       </div>
       {children}
@@ -1036,9 +1076,9 @@ function FormField({
 
 function inputClass(hasError?: string) {
   return cn(
-    "w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-4",
+    "w-full rounded-[1.25rem] border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4",
     hasError
       ? "border-rose-200 focus:border-rose-300 focus:ring-rose-100"
-      : "border-slate-200 focus:border-sage-300 focus:ring-sage-100"
+      : "border-black/8 focus:border-sage-300 focus:ring-sage-100"
   );
 }

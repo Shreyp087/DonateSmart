@@ -1,6 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 import { estimateSuggestedResaleRange } from "@/lib/pricing";
-import { AppraisalSource, DonationInput, ItemAppraisal, SuggestedRange } from "@/lib/types";
+import {
+  AppraisalSource,
+  BuyerStory,
+  BuyerStoryStep,
+  DonationInput,
+  DonationItem,
+  ItemAppraisal,
+  SuggestedRange
+} from "@/lib/types";
 import { toTitleCase } from "@/lib/utils";
 
 const defaultGeminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -97,6 +105,183 @@ function getAiValidationUnavailableError() {
       itemName: "Automatic item verification is temporarily unavailable."
     }
   );
+}
+
+function chunkItems<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+function getStoryDraft(item: DonationItem): Omit<BuyerStory, "generatedAt" | "model"> {
+  const itemLabel = item.brand ? `${item.brand} ${item.itemName}` : item.itemName;
+  const rangeLabel = `$${item.suggestedResaleRange.low}-$${item.suggestedResaleRange.high}`;
+
+  return {
+    title:
+      item.status === "sold"
+        ? `${toTitleCase(item.itemName)} already found a new home`
+        : `${toTitleCase(item.itemName)} is ready for its next chapter`,
+    preview: `${itemLabel} is part of a reuse story that keeps something useful in motion instead of letting it go to waste.`,
+    detail: `${itemLabel} has already done its job once and now gets a fresh chance to be noticed again. ${item.donorImpactMessage}`,
+    buyMessage: `Choose this piece now and keep its reuse story moving for around ${rangeLabel}.`,
+    pickupMessage: "Pick a simple pickup time and this item can be held for its next handoff.",
+    steps: [
+      {
+        label: "Passed forward",
+        detail: `Someone chose to donate this ${item.itemName.toLowerCase()} instead of letting it sit unused.`
+      },
+      {
+        label: "Checked in",
+        detail: `DonateSmart logged it, photographed it, and placed it into the ${item.category} flow.`
+      },
+      {
+        label: "Prepared for reuse",
+        detail: `Its ${item.condition} condition supports a gentle resale range around ${rangeLabel}.`
+      },
+      {
+        label: item.status === "sold" ? "Taken home" : "Waiting for a match",
+        detail:
+          item.status === "sold"
+            ? "Its next chapter has already started with a buyer."
+            : "The next person who chooses it becomes part of the story too."
+      }
+    ]
+  };
+}
+
+function toStoryStep(step: unknown, fallback: BuyerStoryStep) {
+  if (!step || typeof step !== "object") {
+    return fallback;
+  }
+
+  const candidate = step as Partial<BuyerStoryStep>;
+  const label = typeof candidate.label === "string" ? candidate.label.trim() : "";
+  const detail = typeof candidate.detail === "string" ? candidate.detail.trim() : "";
+
+  return {
+    label: label || fallback.label,
+    detail: detail || fallback.detail
+  };
+}
+
+function toBuyerStory(item: DonationItem, rawStory: unknown): BuyerStory {
+  const draft = getStoryDraft(item);
+  const candidate = rawStory && typeof rawStory === "object" ? (rawStory as Partial<BuyerStory>) : {};
+  const rawSteps = Array.isArray(candidate.steps) ? candidate.steps : [];
+  const steps = draft.steps.map((fallbackStep, index) => toStoryStep(rawSteps[index], fallbackStep));
+
+  return {
+    title: typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim() : draft.title,
+    preview:
+      typeof candidate.preview === "string" && candidate.preview.trim() ? candidate.preview.trim() : draft.preview,
+    detail: typeof candidate.detail === "string" && candidate.detail.trim() ? candidate.detail.trim() : draft.detail,
+    buyMessage:
+      typeof candidate.buyMessage === "string" && candidate.buyMessage.trim()
+        ? candidate.buyMessage.trim()
+        : draft.buyMessage,
+    pickupMessage:
+      typeof candidate.pickupMessage === "string" && candidate.pickupMessage.trim()
+        ? candidate.pickupMessage.trim()
+        : draft.pickupMessage,
+    steps,
+    generatedAt: new Date().toISOString(),
+    model: defaultGeminiModel
+  };
+}
+
+export async function generateBuyerStories(items: DonationItem[]) {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || items.length === 0) {
+    return {} as Record<string, BuyerStory>;
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  const stories: Record<string, BuyerStory> = {};
+
+  for (const chunk of chunkItems(items, 6)) {
+    const storyInputs = chunk.map((item) => ({
+      id: item.id,
+      itemName: item.itemName,
+      category: item.category,
+      brand: item.brand || "",
+      condition: item.condition,
+      description: item.description || "",
+      status: item.status,
+      priceRange: `$${item.suggestedResaleRange.low}-$${item.suggestedResaleRange.high}`,
+      donorImpactMessage: item.donorImpactMessage,
+      appraisalSummary: item.appraisal.summary
+    }));
+
+    const prompt = `
+      You are writing short, charming, buyer-facing thrift stories for DonateSmart.
+
+      Each item should feel specific to the product, category, condition, and current status.
+      Avoid repeating the same structure or generic wording across items.
+      Keep the tone warm, cute, and grounded.
+      Do not invent dramatic personal history or unverifiable details.
+      Write concise copy for a product card and a product detail page.
+
+      Return exactly one JSON object with this shape and nothing else:
+      {
+        "stories": [
+          {
+            "id": "item-id",
+            "title": "string",
+            "preview": "string",
+            "detail": "string",
+            "buyMessage": "string",
+            "pickupMessage": "string",
+            "steps": [
+              { "label": "string", "detail": "string" },
+              { "label": "string", "detail": "string" },
+              { "label": "string", "detail": "string" },
+              { "label": "string", "detail": "string" }
+            ]
+          }
+        ]
+      }
+
+      Writing rules:
+      - Make each title and preview clearly different from the others.
+      - preview should work on a card and stay under 180 characters.
+      - detail should be 2 or 3 short sentences.
+      - buyMessage and pickupMessage should each be one short sentence.
+      - The 4 steps should feel item-specific, not generic boilerplate.
+      - If an item is sold, reflect that it already found a home.
+      - If an item is not yet floor-ready, reflect that it is still being prepared.
+
+      Items:
+      ${JSON.stringify(storyInputs, null, 2)}
+    `.trim();
+
+    const response = await ai.models.generateContent({
+      model: defaultGeminiModel,
+      contents: prompt
+    });
+
+    const rawText = typeof response.text === "string" ? response.text : "";
+
+    if (!rawText) {
+      throw new Error("Gemini returned an empty buyer story response.");
+    }
+
+    const parsed = JSON.parse(extractJsonText(rawText)) as {
+      stories?: Array<{ id?: string } & Partial<BuyerStory>>;
+    };
+
+    for (const item of chunk) {
+      const matchingStory = parsed.stories?.find((story) => story.id === item.id);
+      stories[item.id] = toBuyerStory(item, matchingStory);
+    }
+  }
+
+  return stories;
 }
 
 export async function appraiseDonationItem(

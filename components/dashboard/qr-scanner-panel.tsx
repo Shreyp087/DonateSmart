@@ -115,7 +115,7 @@ export function QrScannerPanel() {
   }
 
   return (
-    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-[1.5rem] border border-black/5 bg-slate-50/80 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-900">Scan with camera</p>
@@ -129,8 +129,8 @@ export function QrScannerPanel() {
           className={cn(
             "rounded-full px-5 py-3 text-sm font-semibold transition",
             isOpen
-              ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-              : "bg-slate-900 text-white hover:bg-slate-700"
+              ? "border border-black/8 bg-white text-slate-700 hover:bg-slate-100"
+              : "bg-slate-950 text-white hover:bg-slate-800"
           )}
         >
           {isOpen ? "Close scanner" : isStarting ? "Opening camera..." : "Start scanner"}
@@ -145,7 +145,7 @@ export function QrScannerPanel() {
       ) : null}
 
       {isOpen ? (
-        <div className="mt-4 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-900">
+        <div className="mt-4 overflow-hidden rounded-[1.25rem] border border-black/8 bg-slate-900">
           <video ref={videoRef} autoPlay playsInline muted className="h-72 w-full object-cover" />
         </div>
       ) : null}

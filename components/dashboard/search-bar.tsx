@@ -26,18 +26,18 @@ export function SearchBar({
         name="query"
         defaultValue={defaultValue}
         placeholder="Search by item name, category, item ID, or QR code ID"
-        className="w-full rounded-full border border-slate-200 bg-white px-5 py-3 text-sm text-slate-900 outline-none transition focus:border-sage-300 focus:ring-4 focus:ring-sage-100 sm:min-w-80"
+        className="w-full rounded-[1.25rem] border border-black/8 bg-white px-5 py-3 text-sm text-slate-900 outline-none transition focus:border-sage-300 focus:ring-4 focus:ring-sage-100 sm:min-w-80"
       />
       <div className="flex gap-3">
         <button
           type="submit"
-          className="rounded-full bg-sage-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sage-700"
+          className="rounded-[1.25rem] bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
         >
           Search
         </button>
         <Link
           href={resetHref}
-          className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          className="rounded-[1.25rem] border border-black/8 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
         >
           Reset
         </Link>

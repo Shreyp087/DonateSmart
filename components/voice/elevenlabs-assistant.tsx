@@ -19,14 +19,15 @@ export function ElevenLabsAssistant() {
       ) : null}
 
       {!isOpen ? (
-        <div className="fixed bottom-5 right-5 z-30 flex max-w-sm flex-col items-end gap-3">
+        <div className="fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-3 sm:bottom-5 sm:right-5 sm:max-w-sm">
           <button
             type="button"
             onClick={() => setIsOpen(true)}
-            className="inline-flex items-center gap-3 rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-700"
+            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-lg transition hover:bg-slate-700 sm:gap-3 sm:px-5"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">AI</span>
-            Talk to DonateSmart
+            <span className="sm:hidden">Voice help</span>
+            <span className="hidden sm:inline">Talk to DonateSmart</span>
           </button>
         </div>
       ) : null}

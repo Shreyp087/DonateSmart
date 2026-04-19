@@ -20,7 +20,7 @@ export default async function SuccessPage({
   const donorId = searchParams?.donor || item.donorId || undefined;
   const donor = donorId ? await getDonorById(donorId) : null;
   const nextItemHref = donor ? `/donate?donor=${donor.id}` : searchParams?.anonymous === "1" || item.isAnonymousDonation ? "/donate?anonymous=1" : "/donate";
-  const exitHref = donor ? `/?donor=${donor.id}&item=${item.id}` : "/";
+  const exitHref = donor ? `/?donor=${donor.id}` : "/";
 
   return (
     <PageShell className="grid gap-8 lg:grid-cols-[1fr_340px] lg:items-start">
@@ -63,7 +63,33 @@ export default async function SuccessPage({
           </div>
         </div>
 
+        <div className="mt-8 rounded-[1.5rem] border border-sage-100 bg-sage-50 p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sage-700">The loop you can now follow</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-[1.25rem] bg-white px-4 py-4">
+              <p className="text-sm font-semibold text-slate-900">Arrives</p>
+              <p className="mt-2 text-sm text-slate-500">Staff scans or checks in the item after the physical handoff.</p>
+            </div>
+            <div className="rounded-[1.25rem] bg-white px-4 py-4">
+              <p className="text-sm font-semibold text-slate-900">Hits the floor</p>
+              <p className="mt-2 text-sm text-slate-500">Once reviewed, it becomes part of the resale inventory.</p>
+            </div>
+            <div className="rounded-[1.25rem] bg-white px-4 py-4">
+              <p className="text-sm font-semibold text-slate-900">Finds a new home</p>
+              <p className="mt-2 text-sm text-slate-500">You can now show that full story instead of ending at submission.</p>
+            </div>
+          </div>
+        </div>
+
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          {donor ? (
+            <Link
+              href={`/donor/${donor.id}`}
+              className="rounded-full border border-peach-200 bg-peach-50 px-6 py-3 text-center text-sm font-semibold text-peach-600 transition hover:bg-peach-100"
+            >
+              Track my items
+            </Link>
+          ) : null}
           <Link
             href={nextItemHref}
             className="rounded-full bg-sage-600 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-sage-700"

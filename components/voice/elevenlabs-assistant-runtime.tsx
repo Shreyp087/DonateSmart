@@ -73,9 +73,9 @@ function AssistantPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () =>
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-30 flex max-w-sm flex-col items-end gap-3">
+    <div className="fixed inset-x-3 bottom-3 z-30 flex flex-col items-end gap-3 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:max-w-sm">
       {isOpen ? (
-        <div className="w-[min(92vw,24rem)] rounded-[1.75rem] border border-white/80 bg-white/95 p-5 shadow-card backdrop-blur">
+        <div className="w-full rounded-[1.75rem] border border-white/80 bg-white/95 p-4 shadow-card backdrop-blur sm:w-[min(92vw,24rem)] sm:p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-sage-700">Voice Assistant</p>

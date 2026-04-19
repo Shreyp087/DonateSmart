@@ -9,7 +9,7 @@ import { formatCurrency, formatDate, getSafeAppraisalSummary, toTitleCase } from
 export function ItemGrid({ items }: { items: DonationItem[] }) {
   if (items.length === 0) {
     return (
-      <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white/80 px-6 py-16 text-center shadow-card">
+      <div className="rounded-[2rem] border border-dashed border-black/10 bg-white/80 px-6 py-16 text-center shadow-card">
         <p className="text-lg font-semibold text-slate-800">No items match this search.</p>
         <p className="mt-2 text-sm text-slate-500">Try a different item name or category keyword.</p>
       </div>
@@ -21,7 +21,7 @@ export function ItemGrid({ items }: { items: DonationItem[] }) {
       {items.map((item) => (
         <article
           key={item.id}
-          className="overflow-hidden rounded-[2rem] border border-white/80 bg-white/85 shadow-card backdrop-blur"
+          className="overflow-hidden rounded-[2rem] border border-black/5 bg-white/86 shadow-card backdrop-blur"
         >
           <div className="grid md:grid-cols-[220px_1fr]">
             <img src={item.imageDataUrl} alt={item.itemName} className="h-full min-h-60 w-full object-cover" />
@@ -63,15 +63,17 @@ export function ItemGrid({ items }: { items: DonationItem[] }) {
                   {getSafeAppraisalSummary(item.appraisal.summary)}
                 </p>
               </div>
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <p className="text-sm text-slate-500">
                   {item.status === "sold" && item.soldAt
                     ? `Sold ${formatDate(item.soldAt)} for ${formatCurrency(item.soldPrice || 0)}`
                     : `Submitted ${formatDate(item.createdAt)}`}
                 </p>
-                <div className="flex items-center gap-3">
-                  {item.status === "waiting-approval" ? <ApproveItemButton itemId={item.id} /> : null}
-                  {item.status !== "waiting-approval" && item.status !== "sold" ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  {["submitted", "waiting-approval", "received"].includes(item.status) ? (
+                    <ApproveItemButton itemId={item.id} />
+                  ) : null}
+                  {["approved", "ready-for-floor"].includes(item.status) ? (
                     <MarkSoldButton itemId={item.id} />
                   ) : null}
                   <Link
@@ -92,8 +94,8 @@ export function ItemGrid({ items }: { items: DonationItem[] }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</p>
+    <div className="rounded-[1.25rem] border border-black/5 bg-slate-50/80 p-4">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.3em] text-slate-400">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-800">{value}</p>
     </div>
   );

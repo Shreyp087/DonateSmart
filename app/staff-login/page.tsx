@@ -10,22 +10,23 @@ export default async function StaffLoginPage() {
 
   return (
     <PageShell className="flex min-h-[70vh] items-center justify-center">
-      <section className="w-full max-w-xl rounded-[2rem] border border-white/80 bg-white/85 p-8 shadow-card backdrop-blur sm:p-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sage-700">Staff Access</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-900">
-          Sign in to the employee dashboard
+      <section className="w-full max-w-2xl rounded-[2.5rem] border border-black/5 bg-white/82 p-8 shadow-card backdrop-blur sm:p-10">
+        <p className="font-mono text-[11px] uppercase tracking-[0.38em] text-slate-500">Staff Access</p>
+        <h1 className="mt-3 text-editorial text-5xl font-medium tracking-tight text-slate-950">
+          Open the staff desk.
         </h1>
-        <p className="mt-4 text-base leading-7 text-slate-600">
-          This dashboard is restricted to staff members. Enter the employee ID and password to continue.
+        <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
+          The staff desk is where QR lookup, approvals, and inventory flow come together. Sign in to continue into
+          the operational view.
         </p>
 
-        <div className="mt-8 rounded-[1.5rem] border border-dashed border-sage-200 bg-sage-50 px-5 py-4">
-          <p className="text-sm font-semibold text-sage-800">Demo credentials</p>
+        <div className="mt-8 rounded-[1.75rem] border border-black/5 bg-slate-50/80 px-5 py-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-slate-400">Demo credentials</p>
           <p className="mt-2 text-sm text-slate-600">
-            Employee ID: <span className="font-semibold">ghost</span>
+            Employee ID: <span className="font-medium">ghost</span>
           </p>
           <p className="text-sm text-slate-600">
-            Password: <span className="font-semibold">12345</span>
+            Password: <span className="font-medium">12345</span>
           </p>
         </div>
 

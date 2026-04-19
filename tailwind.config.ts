@@ -40,11 +40,14 @@ const config: Config = {
         "4xl": "2rem"
       },
       fontFamily: {
-        sans: ["ui-sans-serif", "system-ui", "sans-serif"]
+        sans: ["var(--font-public-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["ui-monospace", "SFMono-Regular", "SF Mono", "Consolas", "monospace"]
       },
       backgroundImage: {
         "hero-glow":
-          "radial-gradient(circle at top left, rgba(255, 170, 115, 0.24), transparent 32%), radial-gradient(circle at bottom right, rgba(140, 197, 166, 0.26), transparent 28%)"
+          "radial-gradient(circle at top left, rgba(255, 170, 115, 0.18), transparent 30%), radial-gradient(circle at bottom right, rgba(140, 197, 166, 0.18), transparent 26%)",
+        "workspace-grid":
+          "linear-gradient(to right, rgba(15, 23, 42, 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(15, 23, 42, 0.06) 1px, transparent 1px)"
       }
     }
   },

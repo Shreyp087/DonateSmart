@@ -46,7 +46,7 @@ export function StaffLoginForm() {
         <input
           value={id}
           onChange={(event) => setId(event.target.value)}
-          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:bg-white focus:border-sage-300 focus:ring-4 focus:ring-sage-100"
+          className="w-full rounded-[1.25rem] border border-black/8 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sage-300 focus:ring-4 focus:ring-sage-100"
           placeholder="ghost"
         />
       </label>
@@ -57,7 +57,7 @@ export function StaffLoginForm() {
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:bg-white focus:border-sage-300 focus:ring-4 focus:ring-sage-100"
+          className="w-full rounded-[1.25rem] border border-black/8 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sage-300 focus:ring-4 focus:ring-sage-100"
           placeholder="12345"
         />
       </label>
@@ -71,7 +71,7 @@ export function StaffLoginForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="inline-flex w-full items-center justify-center rounded-full bg-sage-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-sage-700 disabled:cursor-not-allowed disabled:bg-sage-300"
+        className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
       >
         {isSubmitting ? "Signing in..." : "Sign in to dashboard"}
       </button>

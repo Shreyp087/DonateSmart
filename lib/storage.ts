@@ -1,10 +1,11 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { DonationInput, DonationItem, DonorInput, DonorProfile } from "@/lib/types";
-import { appraiseDonationItem } from "@/lib/gemini";
+import { DonationInput, DonationItem, DonorInput, DonorProfile, ItemStatus, WeeklyNeeds } from "@/lib/types";
+import { appraiseDonationItem, generateBuyerStories } from "@/lib/gemini";
 import { generateItemQrCodeDataUrl } from "@/lib/qr";
 import { toTitleCase } from "@/lib/utils";
 import { buildDonorImpactMessage } from "@/lib/impact";
+import { buildFallbackBuyerStory } from "@/lib/item-journey";
 
 const dataDir = path.join(process.cwd(), "data");
 const itemsFile = path.join(dataDir, "items.json");
@@ -12,15 +13,41 @@ const itemsFile = path.join(dataDir, "items.json");
 interface ItemStore {
   donors: DonorProfile[];
   items: DonationItem[];
+  weeklyNeeds: WeeklyNeeds;
 }
+
+const defaultWeeklyNeeds: WeeklyNeeds = {
+  categories: ["Winter coats", "Men's shoes", "Children's books"],
+  updatedAt: "2026-04-19T00:00:00.000Z"
+};
 
 async function ensureStore() {
   try {
     await fs.access(itemsFile);
   } catch {
     await fs.mkdir(dataDir, { recursive: true });
-    await fs.writeFile(itemsFile, JSON.stringify({ donors: [], items: [] }, null, 2), "utf8");
+    await fs.writeFile(
+      itemsFile,
+      JSON.stringify({ donors: [], items: [], weeklyNeeds: defaultWeeklyNeeds }, null, 2),
+      "utf8"
+    );
   }
+}
+
+function normalizeWeeklyNeeds(input?: Partial<WeeklyNeeds> | null): WeeklyNeeds {
+  const categories = Array.from(
+    new Set(
+      (input?.categories ?? [])
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .slice(0, 6)
+    )
+  );
+
+  return {
+    categories: categories.length > 0 ? categories : defaultWeeklyNeeds.categories,
+    updatedAt: input?.updatedAt || defaultWeeklyNeeds.updatedAt
+  };
 }
 
 async function readStore(): Promise<ItemStore> {
@@ -29,7 +56,8 @@ async function readStore(): Promise<ItemStore> {
   const parsed = JSON.parse(raw) as Partial<ItemStore>;
   return {
     donors: parsed.donors ?? [],
-    items: parsed.items ?? []
+    items: parsed.items ?? [],
+    weeklyNeeds: normalizeWeeklyNeeds(parsed.weeklyNeeds)
   };
 }
 
@@ -63,9 +91,131 @@ function resolveBaseUrl() {
   );
 }
 
+const displayStatusPriority: Record<ItemStatus, number> = {
+  sold: 6,
+  "ready-for-floor": 5,
+  approved: 4,
+  received: 3,
+  "waiting-approval": 2,
+  submitted: 1
+};
+
+function normalizeDisplayText(value?: string) {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getDisplayDedupKey(item: DonationItem) {
+  return [
+    normalizeDisplayText(item.itemName),
+    normalizeDisplayText(item.brand),
+    item.category,
+    item.imageDataUrl.slice(0, 80)
+  ].join("|");
+}
+
+function isPreferredDisplayItem(candidate: DonationItem, current: DonationItem) {
+  const priorityDelta = displayStatusPriority[candidate.status] - displayStatusPriority[current.status];
+
+  if (priorityDelta !== 0) {
+    return priorityDelta > 0;
+  }
+
+  return candidate.createdAt > current.createdAt;
+}
+
+export function dedupeItemsForDisplay(items: DonationItem[]) {
+  const deduped = new Map<string, DonationItem>();
+
+  for (const item of items) {
+    const key = getDisplayDedupKey(item);
+    const existing = deduped.get(key);
+
+    if (!existing || isPreferredDisplayItem(item, existing)) {
+      deduped.set(key, item);
+    }
+  }
+
+  return Array.from(deduped.values()).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+async function ensureBuyerStories(store: ItemStore, itemIds: string[]) {
+  const targets = store.items.filter((item) => itemIds.includes(item.id));
+  const itemsNeedingStories = targets.filter((item) => !item.buyerStory || item.buyerStory.model === "fallback-local");
+
+  if (itemsNeedingStories.length === 0) {
+    return;
+  }
+
+  let generatedStories: Record<string, DonationItem["buyerStory"]> = {};
+
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      generatedStories = await generateBuyerStories(itemsNeedingStories);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown Gemini story generation failure.";
+      console.error("Gemini buyer stories failed:", message);
+    }
+  }
+
+  let hasChanges = false;
+
+  for (const item of itemsNeedingStories) {
+    const generatedStory = generatedStories[item.id];
+
+    if (generatedStory) {
+      item.buyerStory = generatedStory;
+      hasChanges = true;
+      continue;
+    }
+
+    if (!item.buyerStory) {
+      item.buyerStory = buildFallbackBuyerStory(item);
+      hasChanges = true;
+    }
+  }
+
+  if (hasChanges) {
+    await writeStore(store);
+  }
+}
+
 export async function getAllItems() {
   const store = await readStore();
   return store.items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export async function getWeeklyNeeds() {
+  const store = await readStore();
+  return store.weeklyNeeds;
+}
+
+export async function updateWeeklyNeeds(categories: string[]) {
+  const store = await readStore();
+
+  store.weeklyNeeds = normalizeWeeklyNeeds({
+    categories,
+    updatedAt: new Date().toISOString()
+  });
+
+  await writeStore(store);
+  return store.weeklyNeeds;
+}
+
+export async function getInventoryItems() {
+  const store = await readStore();
+  return dedupeItemsForDisplay(store.items);
+}
+
+export async function getShopItems() {
+  const store = await readStore();
+  const visibleItems = dedupeItemsForDisplay(store.items);
+
+  await ensureBuyerStories(
+    store,
+    visibleItems.map((item) => item.id)
+  );
+
+  return dedupeItemsForDisplay(store.items);
 }
 
 export async function getItemById(id: string) {
@@ -78,9 +228,28 @@ export async function getItemByQrCodeId(qrCodeId: string) {
   return store.items.find((item) => item.qrCodeId === qrCodeId) ?? null;
 }
 
+export async function getShopItemById(id: string) {
+  const store = await readStore();
+  const item = store.items.find((entry) => entry.id === id);
+
+  if (!item) {
+    return null;
+  }
+
+  await ensureBuyerStories(store, [id]);
+  return store.items.find((entry) => entry.id === id) ?? item;
+}
+
 export async function getDonorById(id: string) {
   const store = await readStore();
   return store.donors.find((donor) => donor.id === id) ?? null;
+}
+
+export async function getItemsByDonorId(donorId: string) {
+  const store = await readStore();
+  return store.items
+    .filter((item) => item.donorId === donorId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export async function createOrUpdateDonor(input: DonorInput, donorId?: string) {
@@ -189,7 +358,7 @@ export async function approveDonationItem(id: string) {
     return null;
   }
 
-  if (item.status !== "waiting-approval") {
+  if (item.status === "sold" || item.status === "approved" || item.status === "ready-for-floor") {
     return item;
   }
 

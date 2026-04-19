@@ -10,7 +10,13 @@ export type ItemCategory =
   | "toys"
   | "other";
 
-export type ItemStatus = "waiting-approval" | "approved" | "ready-for-floor" | "sold";
+export type ItemStatus =
+  | "submitted"
+  | "waiting-approval"
+  | "received"
+  | "approved"
+  | "ready-for-floor"
+  | "sold";
 export type ClothingBulkRange = "0-10" | "10-20" | "20-30" | "30-40" | "40+";
 
 export interface DonorInput {
@@ -64,6 +70,27 @@ export interface DonorProfile extends DonorInput {
   updatedAt: string;
 }
 
+export interface WeeklyNeeds {
+  categories: string[];
+  updatedAt: string;
+}
+
+export interface BuyerStoryStep {
+  label: string;
+  detail: string;
+}
+
+export interface BuyerStory {
+  title: string;
+  preview: string;
+  detail: string;
+  buyMessage: string;
+  pickupMessage: string;
+  steps: BuyerStoryStep[];
+  generatedAt: string;
+  model: string;
+}
+
 export interface DonationItem extends DonationInput {
   id: string;
   qrCodeId: string;
@@ -79,4 +106,5 @@ export interface DonationItem extends DonationInput {
   loyaltyPointsAwarded: number;
   donorImpactMessage: string;
   appraisal: ItemAppraisal;
+  buyerStory?: BuyerStory;
 }

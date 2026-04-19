@@ -1,21 +1,22 @@
 import { ApproveItemButton } from "@/components/dashboard/approve-item-button";
 import { DonationItem } from "@/lib/types";
 import { CategoryBadge } from "@/components/ui/category-badge";
+import { DetailImagePanel } from "@/components/ui/detail-image-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency, formatDate, getSafeAppraisalSummary, toTitleCase } from "@/lib/utils";
 
 export function ItemDetailCard({ item, canApprove = false }: { item: DonationItem; canApprove?: boolean }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-      <div className="overflow-hidden rounded-[2rem] border border-white/80 bg-white/85 shadow-card backdrop-blur">
-        <img src={item.imageDataUrl} alt={item.itemName} className="h-full min-h-[420px] w-full object-cover" />
-      </div>
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+      <DetailImagePanel src={item.imageDataUrl} alt={item.itemName} className="min-h-[360px] lg:min-h-[520px]" />
 
       <div className="space-y-6 rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-card backdrop-blur sm:p-8">
         <div className="flex flex-wrap items-center gap-2">
           <CategoryBadge label={toTitleCase(item.category)} />
           <StatusBadge status={item.status} />
-          {canApprove && item.status === "waiting-approval" ? <ApproveItemButton itemId={item.id} /> : null}
+          {canApprove && ["submitted", "waiting-approval", "received"].includes(item.status) ? (
+            <ApproveItemButton itemId={item.id} />
+          ) : null}
         </div>
 
         <div>

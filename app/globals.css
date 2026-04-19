@@ -8,14 +8,15 @@
 
 html {
   scroll-behavior: smooth;
+  background: #f8f7f1;
 }
 
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(255, 170, 115, 0.18), transparent 28%),
-    linear-gradient(180deg, #fffdf8 0%, #f7fbf8 100%);
-  color: #1f2937;
+    radial-gradient(circle at top, rgba(255, 189, 146, 0.16), transparent 24%),
+    linear-gradient(180deg, #fcfbf7 0%, #f3f6f1 100%);
+  color: #111827;
 }
 
 * {
@@ -28,4 +29,9 @@ body {
 
 .text-balance {
   text-wrap: balance;
+}
+
+.text-editorial {
+  text-wrap: balance;
+  letter-spacing: -0.035em;
 }

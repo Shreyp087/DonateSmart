@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 
 const ElevenLabsAssistantRuntime = dynamic(
   () => import("@/components/voice/elevenlabs-assistant-runtime").then((module) => module.ElevenLabsAssistantRuntime),
@@ -9,8 +10,20 @@ const ElevenLabsAssistantRuntime = dynamic(
 );
 
 export function ElevenLabsAssistant() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const shouldShowLauncher = pathname === "/donate";
   const shouldLoadRuntime = useMemo(() => isOpen, [isOpen]);
+
+  useEffect(() => {
+    if (!shouldShowLauncher && isOpen) {
+      setIsOpen(false);
+    }
+  }, [isOpen, shouldShowLauncher]);
+
+  if (!shouldShowLauncher) {
+    return null;
+  }
 
   return (
     <>
@@ -26,8 +39,7 @@ export function ElevenLabsAssistant() {
             className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-lg transition hover:bg-slate-700 sm:gap-3 sm:px-5"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">AI</span>
-            <span className="sm:hidden">Voice help</span>
-            <span className="hidden sm:inline">Talk to DonateSmart</span>
+            <span>Voice guide</span>
           </button>
         </div>
       ) : null}

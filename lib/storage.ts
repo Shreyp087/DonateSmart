@@ -9,6 +9,7 @@ import { buildFallbackBuyerStory } from "@/lib/item-journey";
 
 const dataDir = path.join(process.cwd(), "data");
 const itemsFile = path.join(dataDir, "items.json");
+const configuredStorageMode = process.env.DONATESMART_STORAGE_MODE;
 
 interface ItemStore {
   donors: DonorProfile[];
@@ -21,14 +22,52 @@ const defaultWeeklyNeeds: WeeklyNeeds = {
   updatedAt: "2026-04-19T00:00:00.000Z"
 };
 
-async function ensureStore() {
+function getDefaultStore(): ItemStore {
+  return {
+    donors: [],
+    items: [],
+    weeklyNeeds: defaultWeeklyNeeds
+  };
+}
+
+function resolveStorageMode() {
+  if (configuredStorageMode === "file" || configuredStorageMode === "memory") {
+    return configuredStorageMode;
+  }
+
+  return process.env.VERCEL ? "memory" : "file";
+}
+
+function getGlobalStore() {
+  return globalThis as typeof globalThis & {
+    __donatesmartStore?: ItemStore;
+  };
+}
+
+function normalizeStore(parsed: Partial<ItemStore>): ItemStore {
+  return {
+    donors: parsed.donors ?? [],
+    items: parsed.items ?? [],
+    weeklyNeeds: normalizeWeeklyNeeds(parsed.weeklyNeeds)
+  };
+}
+
+function isReadonlyFilesystemError(error: unknown) {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error.code === "EROFS" || error.code === "EPERM" || error.code === "EACCES")
+  );
+}
+
+async function ensureFileStore() {
   try {
     await fs.access(itemsFile);
   } catch {
     await fs.mkdir(dataDir, { recursive: true });
     await fs.writeFile(
       itemsFile,
-      JSON.stringify({ donors: [], items: [], weeklyNeeds: defaultWeeklyNeeds }, null, 2),
+      JSON.stringify(getDefaultStore(), null, 2),
       "utf8"
     );
   }
@@ -50,19 +89,56 @@ function normalizeWeeklyNeeds(input?: Partial<WeeklyNeeds> | null): WeeklyNeeds 
   };
 }
 
-async function readStore(): Promise<ItemStore> {
-  await ensureStore();
+async function readStoreFromFile() {
+  await ensureFileStore();
   const raw = await fs.readFile(itemsFile, "utf8");
-  const parsed = JSON.parse(raw) as Partial<ItemStore>;
-  return {
-    donors: parsed.donors ?? [],
-    items: parsed.items ?? [],
-    weeklyNeeds: normalizeWeeklyNeeds(parsed.weeklyNeeds)
-  };
+  return normalizeStore(JSON.parse(raw) as Partial<ItemStore>);
+}
+
+async function readStoreFromMemory() {
+  const globalStore = getGlobalStore();
+
+  if (!globalStore.__donatesmartStore) {
+    try {
+      globalStore.__donatesmartStore = await readStoreFromFile();
+    } catch {
+      globalStore.__donatesmartStore = getDefaultStore();
+    }
+  }
+
+  return globalStore.__donatesmartStore;
+}
+
+async function writeStoreToMemory(store: ItemStore) {
+  getGlobalStore().__donatesmartStore = store;
+}
+
+async function readStore(): Promise<ItemStore> {
+  if (resolveStorageMode() === "memory") {
+    return readStoreFromMemory();
+  }
+
+  return readStoreFromFile();
 }
 
 async function writeStore(store: ItemStore) {
-  await fs.writeFile(itemsFile, JSON.stringify(store, null, 2), "utf8");
+  if (resolveStorageMode() === "memory") {
+    await writeStoreToMemory(store);
+    return;
+  }
+
+  try {
+    await fs.writeFile(itemsFile, JSON.stringify(store, null, 2), "utf8");
+  } catch (error) {
+    if (!isReadonlyFilesystemError(error)) {
+      throw error;
+    }
+
+    console.warn(
+      "DonateSmart storage switched to in-memory mode because the deployment filesystem is read-only."
+    );
+    await writeStoreToMemory(store);
+  }
 }
 
 function createItemId() {

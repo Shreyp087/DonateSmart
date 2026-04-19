@@ -37,7 +37,21 @@ function AssistantPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () =>
   const [localError, setLocalError] = useState("");
   const { status, message } = useConversationStatus();
   const conversation = useConversation({
-    micMuted: isMuted
+    micMuted: isMuted,
+    onConnect: () => {
+      setLocalError("");
+    },
+    onDisconnect: (details) => {
+      if (details.reason === "user") {
+        setLocalError("");
+        return;
+      }
+
+      setLocalError(toDisconnectMessage(details));
+    },
+    onError: (errorMessage) => {
+      setLocalError(errorMessage || "Unable to keep the voice session connected.");
+    }
   });
   const onDonatePage = pathname === "/donate" && state && actions;
 
@@ -48,7 +62,8 @@ function AssistantPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () =>
     setLocalError("");
 
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      permissionStream.getTracks().forEach((track) => track.stop());
 
       const response = await fetch("/api/elevenlabs/signed-url", { cache: "no-store" });
       const payload = (await response.json().catch(() => ({}))) as { signedUrl?: string; error?: string };
@@ -58,7 +73,8 @@ function AssistantPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () =>
       }
 
       conversation.startSession({
-        signedUrl: payload.signedUrl
+        signedUrl: payload.signedUrl,
+        connectionType: "websocket"
       });
     } catch (error) {
       console.error("Unable to start ElevenLabs session:", error);
@@ -172,6 +188,30 @@ function toStatusLabel(status: ReturnType<typeof useConversationStatus>["status"
   if (status === "connecting") return "Connecting";
   if (status === "error") return "Error";
   return "Disconnected";
+}
+
+function toDisconnectMessage(details: {
+  reason?: string;
+  message?: string;
+  context?: Event | CloseEvent;
+}) {
+  if (details.message) {
+    return details.message;
+  }
+
+  if (details.context instanceof CloseEvent && details.context.reason) {
+    return details.context.reason;
+  }
+
+  if (details.reason === "agent") {
+    return "The voice agent ended the conversation. Please start it again to continue.";
+  }
+
+  if (details.reason === "error") {
+    return "The voice session disconnected unexpectedly. Please start it again.";
+  }
+
+  return "The voice session ended. Please start it again when you are ready.";
 }
 
 function useDonationTools(

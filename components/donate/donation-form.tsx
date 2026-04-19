@@ -43,6 +43,56 @@ const initialItemState = {
   imageDataUrl: ""
 };
 
+const maxImageDimension = 1600;
+const imageExportQuality = 0.82;
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Unable to read that image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageElement(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to prepare that image for upload."));
+    image.src = src;
+  });
+}
+
+async function optimizeImageDataUrl(dataUrl: string) {
+  if (dataUrl.startsWith("data:image/svg+xml")) {
+    return dataUrl;
+  }
+
+  const image = await loadImageElement(dataUrl);
+  const largestSide = Math.max(image.naturalWidth, image.naturalHeight);
+  const scale = largestSide > maxImageDimension ? maxImageDimension / largestSide : 1;
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to prepare that image for upload.");
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", imageExportQuality);
+}
+
+async function createOptimizedUploadDataUrl(file: File) {
+  const rawDataUrl = await readFileAsDataUrl(file);
+  return optimizeImageDataUrl(rawDataUrl);
+}
+
 export function DonationForm({
   donor,
   startAnonymous = false
@@ -187,7 +237,7 @@ export function DonationForm({
     return Object.keys(nextErrors).length === 0;
   }, [form.description.length, form.imageDataUrl, form.itemName, form.bulkClothingRange, isBulkClothingDonation]);
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -196,13 +246,19 @@ export function DonationForm({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      updateField("imageDataUrl", reader.result as string);
+    try {
+      const optimizedImageDataUrl = await createOptimizedUploadDataUrl(file);
+      updateField("imageDataUrl", optimizedImageDataUrl);
       setCameraError("");
       setVoiceUploadHint("Image added. You can ask the voice guide to submit now.");
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        imageDataUrl: error instanceof Error ? error.message : "Unable to process that image."
+      }));
+    } finally {
+      event.target.value = "";
+    }
   }
 
   const openCamera = useCallback(async () => {
@@ -255,8 +311,13 @@ export function DonationForm({
       return;
     }
 
-    canvas.width = width;
-    canvas.height = height;
+    const largestSide = Math.max(width, height);
+    const scale = largestSide > maxImageDimension ? maxImageDimension / largestSide : 1;
+    const exportWidth = Math.max(1, Math.round(width * scale));
+    const exportHeight = Math.max(1, Math.round(height * scale));
+
+    canvas.width = exportWidth;
+    canvas.height = exportHeight;
 
     const context = canvas.getContext("2d");
     if (!context) {
@@ -264,8 +325,8 @@ export function DonationForm({
       return;
     }
 
-    context.drawImage(video, 0, 0, width, height);
-    updateField("imageDataUrl", canvas.toDataURL("image/jpeg", 0.92));
+    context.drawImage(video, 0, 0, exportWidth, exportHeight);
+    updateField("imageDataUrl", canvas.toDataURL("image/jpeg", imageExportQuality));
     setCameraError("");
     setVoiceUploadHint("Photo captured. You can ask the voice guide to submit the donation now.");
     stopCamera();

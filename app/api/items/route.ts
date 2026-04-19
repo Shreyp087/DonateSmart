@@ -57,6 +57,8 @@ export async function POST(request: Request) {
       );
     }
 
+    console.error("Unable to create donation item:", error);
+
     return NextResponse.json(
       { error: "The donation could not be created right now." },
       { status: 500 }
